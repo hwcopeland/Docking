@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import tempfile
 import re
@@ -6,7 +7,7 @@ import time
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from Bio.PDB import *
-
+import shutil
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -22,7 +23,9 @@ dockingligands = "dockingligands.sdf"
 pdbl = PDBList()
 
 # Download the PDB file
-pdbl.retrieve_pdb_file(protein, pdir='.', file_format='pdb')
+pdbl.retrieve_pdb_file(protein, pdir='./Protein/', file_format='pdb')
+
+os.chdir('./Protein/')
 
 # Rename the PDB file
 os.rename(f'pdb{protein.lower()}.ent', f'{protein}.pdb')
@@ -56,14 +59,14 @@ ligand_structure.add(ligand_model)
 ligand_chain = Chain.Chain('A')
 ligand_model.add(ligand_chain)
 
-ligand_files = os.listdir("ligands")
+ligand_files = os.listdir(f"../Ligands/PDB/")
 
 # Open the output file
-with open("all_ligands.pdbqt", "w") as out_file:
+with open(f"{script_dir}/Ligands/PDBQT/all_ligands.pdbqt", "w") as out_file:
     # Write each ligand to the output file
     for i, ligand_file in enumerate(ligand_files):
         # Parse the ligand structure
-        ligand_structure = parser.get_structure(ligand_file, f"ligands/{ligand_file}")
+        ligand_structure = parser.get_structure(ligand_file, f"{script_dir}/Ligands/PDB/{ligand_file}")
         
         # Write the MODEL line
         out_file.write(f"MODEL {i+1}\n")
@@ -96,7 +99,7 @@ io.save(f"{protein}_clean.pdb")
 
 # Save the ligand structure with a different filename
 io.set_structure(ligand_structure)
-ligand_filename = 'ligand_structure.pdb'
+ligand_filename = os.path.join(script_dir, 'Ligands', 'ligand_native.pdb')
 io.save(ligand_filename)
 
 # Print the ligand filename for debugging
@@ -120,24 +123,42 @@ convert_pdb_to_pdbqt(protein)
 # Call the function with the protein name
 make_rigid(protein)
 
-def convert_ligand_to_pdbqt(ligand):
+os.chdir('../Ligands/')
+
+def convert_ligand_to_pdbqt(ligand_path):
     # Define the command
-    command = f'obabel {ligand}.pdb -O {ligand}.pdbqt'
+    command = f'obabel {ligand_path} -O {script_dir}/Ligands/PDBQT/{ligand}.pdbqt -h'
 
-    # Run the command
-    subprocess.run(command, shell=True)
+    # Run the command and capture the output
+    result = subprocess.run(command, shell=True)
+    print(result)
 
-# Call the function with the ligand name
-convert_ligand_to_pdbqt('ligand_structure')
+# Call the function with the ligand path
+for ligand in ligand_files:
+    ligand_path = f"{script_dir}/Ligands/PDB/{ligand}"
+    convert_ligand_to_pdbqt(ligand_path)
 
 # Update the receptor path
-receptor_path = f"{protein}_rigid.pdbqt"
-ligand_path = "ligand_structure.pdbqt"  # Use the correct ligand structure filename
-output_path = "output.pdbqt"
+receptor_path = f"{script_dir}/Protein/{protein}_rigid.pdbqt"
+ligand_path = f"{script_dir}/Ligands/PDBQT/"  # Use the correct ligand structure filename
+output_path = f"{script_dir}/Results/output.pdbqt"
+
+os.chdir('../Protein/')
+print(os.getcwd())
+
+def pause_execution():
+    input("Press Enter to continue...")
+
+# Use the function where you want to pause the script
+pause_execution()
+
+
 
 def run_fpocket(protein):
-    command = f"fpocket -f {protein}.pdb"
+    # Run fpocket
+    command = f"fpocket -f {protein}.pdb -o {protein}_out"
     subprocess.run(command, shell=True)
+
 
 def get_pocket_center(protein):
     run_fpocket(protein)
@@ -169,14 +190,16 @@ size_z = 20
 
 # Define the path to the AutoDock Vina executable
 vina_path = "/home/hwcopeland/Sandbox/autodock_vina_1_1_2_linux_x86/bin/vina"
-
 # Construct the command
-command = f"{vina_path} --receptor {receptor_path} --ligand {ligand_path} --out {output_path} --center_x {center_x} --center_y {center_y} --center_z {center_z} --size_x {size_x} --size_y {size_y} --size_z {size_z}"
+for ligand in ligand_files:
+    ligand_path = f"{script_dir}/Ligands/PDBQT/{ligand}.pdbqt"
+    output_path = f"{script_dir}/Results/{ligand[:-4]}_output.pdbqt"
+    command = f"{vina_path} --receptor {receptor_path} --ligand {ligand_path} --out {output_path} --center_x {center_x} --center_y {center_y} --center_z {center_z} --size_x {size_x} --size_y {size_y} --size_z {size_z}"
 
-# Print the command for debugging
-print(f"Running command: {command}")
+    # Print the command for debugging
+    print(f"Running command: {command}")
 
-# Run the command
-subprocess.call(command, shell=True)
+    # Run the command
+    subprocess.call(command, shell=True)
 
 
