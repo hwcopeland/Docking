@@ -8,38 +8,36 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from Bio.PDB import *
 import shutil
+
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
-
 # Working directory
 os.chdir(script_dir)
 
 # Declare Variables
 protein = '3B67'
 nativeligand = "B67"
-dockingligands = "dockingligands.sdf"
+vina_path = "/home/hwcopeland/Sandbox/autodock_vina_1_1_2_linux_x86/bin/vina"
+num_modes = 10
 
-# Create a PDBList object
+
+##############################################################################
+######################### Dont Edit Below this line ##########################
+##############################################################################
+
+# Create a PDBList object & Download the PDB file
+
 pdbl = PDBList()
-
-# Download the PDB file
 pdbl.retrieve_pdb_file(protein, pdir='./Protein/', file_format='pdb')
-
 os.chdir('./Protein/')
-
-# Rename the PDB file
 os.rename(f'pdb{protein.lower()}.ent', f'{protein}.pdb')
 
-# Create a parser
-parser = PDBParser()
-
 # Parse the structure
+parser = PDBParser()
 structure = parser.get_structure(protein, f"{protein}.pdb")
 
-# Collect water molecules
 water_residues = []
 ligand_residues = []
-
 for model in structure:
     for chain in model:
         for res in chain:
@@ -50,60 +48,37 @@ for model in structure:
 
 # Create a new structure for ligand
 ligand_structure = Structure.Structure('Ligand')
-
 # Add a model to the ligand structure
 ligand_model = Model.Model(0)
 ligand_structure.add(ligand_model)
-
 # Create a new chain
 ligand_chain = Chain.Chain('A')
 ligand_model.add(ligand_chain)
-
 ligand_files = os.listdir(f"../Ligands/PDB/")
 
-# Open the output file
+# Cleaning the protein structure
 with open(f"{script_dir}/Ligands/PDBQT/all_ligands.pdbqt", "w") as out_file:
     # Write each ligand to the output file
     for i, ligand_file in enumerate(ligand_files):
-        # Parse the ligand structure
-        ligand_structure = parser.get_structure(ligand_file, f"{script_dir}/Ligands/PDB/{ligand_file}")
-        
-        # Write the MODEL line
-        out_file.write(f"MODEL {i+1}\n")
-        
-        # Write the ligand structure
-        io = PDBIO()
+        ligand_structure = parser.get_structure(ligand_file, f"{script_dir}/Ligands/PDB/{ligand_file}") # Parse the ligand structure
+        out_file.write(f"MODEL {i+1}\n") # Write the MODEL line
+        io = PDBIO() # Write the ligand structure
         io.set_structure(ligand_structure)
         io.save(out_file)
-        
-        # Write the ENDMDL line
-        out_file.write("ENDMDL\n")
-
-# Add ligand residues to the ligand structure
-for chain, res_id in ligand_residues:
+        out_file.write("ENDMDL\n") # Write the ENDMDL line
+for chain, res_id in ligand_residues: # Add ligand residues to the ligand structure
     res = chain[res_id]
     ligand_chain.add(res.copy())
-
-# Remove ligand residues from the protein structure
-for chain, res_id in ligand_residues:
+for chain, res_id in ligand_residues: # Remove ligand residues from the protein structure
     chain.detach_child(res_id)
-
-# Remove water molecules
-for chain, res_id in water_residues:
+for chain, res_id in water_residues: # Remove water molecules from the protein structure
     chain.detach_child(res_id)
-
-# Save the cleaned protein structure
-io = PDBIO()
+io = PDBIO() # Save the cleaned protein structure
 io.set_structure(structure)
 io.save(f"{protein}_clean.pdb")
-
-# Save the ligand structure with a different filename
-io.set_structure(ligand_structure)
-ligand_filename = os.path.join(script_dir, 'Ligands', 'ligand_native.pdb')
+io.set_structure(ligand_structure) # Save the ligand structure with a different filename
+ligand_filename = os.path.join(script_dir, 'Ligands','PDB', 'ligand_native.pdb')
 io.save(ligand_filename)
-
-# Print the ligand filename for debugging
-print(f"Ligand structure saved as: {ligand_filename}")
 
 def convert_pdb_to_pdbqt(protein):
     # Define the command
@@ -144,15 +119,6 @@ ligand_path = f"{script_dir}/Ligands/PDBQT/"  # Use the correct ligand structure
 output_path = f"{script_dir}/Results/output.pdbqt"
 
 os.chdir('../Protein/')
-print(os.getcwd())
-
-def pause_execution():
-    input("Press Enter to continue...")
-
-# Use the function where you want to pause the script
-pause_execution()
-
-
 
 def run_fpocket(protein):
     # Run fpocket
@@ -187,14 +153,11 @@ center_x, center_y, center_z = get_pocket_center(protein)
 size_x = 20
 size_y = 20
 size_z = 20
-
-# Define the path to the AutoDock Vina executable
-vina_path = "/home/hwcopeland/Sandbox/autodock_vina_1_1_2_linux_x86/bin/vina"
 # Construct the command
 for ligand in ligand_files:
     ligand_path = f"{script_dir}/Ligands/PDBQT/{ligand}.pdbqt"
     output_path = f"{script_dir}/Results/{ligand[:-4]}_output.pdbqt"
-    command = f"{vina_path} --receptor {receptor_path} --ligand {ligand_path} --out {output_path} --center_x {center_x} --center_y {center_y} --center_z {center_z} --size_x {size_x} --size_y {size_y} --size_z {size_z}"
+    command = f"{vina_path} --receptor {receptor_path} --ligand {ligand_path} --out {output_path} --center_x {center_x} --center_y {center_y} --center_z {center_z} --size_x {size_x} --size_y {size_y} --size_z {size_z} --num_modes {num_modes}"
 
     # Print the command for debugging
     print(f"Running command: {command}")
