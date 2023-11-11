@@ -18,7 +18,7 @@ os.chdir(script_dir)
 protein = input("Please enter the protein name: ")
 cocrystalligand = input("Please identify the cocrystal ligand: ")
 # Define directories
-dirs = ["Ligands/PDB", "Ligands/PDBQT", "Protein", "Results"]
+dirs = [f"{script_dir}/Ligands/PDB", f"{script_dir}/Ligands/PDBQT", "Protein", "Results"]
 
 # Ensure directories exist and are clean
 for dir_name in dirs:
