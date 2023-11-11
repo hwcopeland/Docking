@@ -13,14 +13,13 @@ conda create -n docking python=3.7
 # Activate the environment
 source activate docking
 
-# Install rdkit and fpocket with conda
+# Install conda packages
 conda install -c rdkit rdkit
 conda install -c bioconda fpocket
-
-# Install autodock vina
 conda install -c bioconda autodock-vina
+conda install -c conda-forge -c schrodinger pymol-bundle
 
-# Install biopython and openbabel with pip
+# Install pip packages
 pip install biopython openbabel
 
 cd $HOME
@@ -30,4 +29,3 @@ mkdir Ligands
 mkdir Protein
 mkdir Results
 cd Docking
-wget https://github.com/hwcopeland/Docking/blob/main/docking.py > docking.py
