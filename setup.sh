@@ -40,6 +40,9 @@ conda install -c schrodinger pymol
 conda install -c conda-forge biopython
 conda install -c conda-forge openbabel
 
+export PATH="$HOME/miniconda/envs/docking/bin:$PATH"
+export PATH="$HOME/miniconda/bin:$PATH"0
+
 mkdir Ligands Protein Results
 cd Ligands
 mkdir PDB PDBQT
