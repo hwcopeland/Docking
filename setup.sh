@@ -36,15 +36,13 @@ source activate docking
 conda install -c rdkit rdkit
 conda install -c bioconda fpocket
 conda install -c bioconda autodock-vina
-conda install -c conda-forge -c schrodinger pymol-bundle
-
-# Install pip packages
-pip install biopython openbabel
+conda install -c schrodinger pymol
+conda install -c conda-forge biopython
+conda install -c conda-forge openbabel
 
 cd $HOME
 
-mkdir Docking
-mkdir Ligands
-mkdir Protein
-mkdir Results
-cd Docking
+mkdir Docking Ligands Protein Results
+cd Ligands
+mkdir PDB PDBQT
+cd ..
