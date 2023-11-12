@@ -33,16 +33,14 @@ conda create -n docking python=3.7
 source activate docking
 
 # Install conda packages
-conda install -c rdkit rdkit
-conda install -c bioconda fpocket
-conda install -c bioconda autodock-vina
+conda install -c conda-forge rdkit
+conda install -c conda-forge fpocket
+conda install -c conda-forge vina
 conda install -c schrodinger pymol
 conda install -c conda-forge biopython
 conda install -c conda-forge openbabel
 
-cd $HOME
-
-mkdir Docking Ligands Protein Results
+mkdir Ligands Protein Results
 cd Ligands
 mkdir PDB PDBQT
 cd ..
