@@ -1,13 +1,13 @@
 import os
 import sys
 import subprocess
-import tempfile
 import re
 import time
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from Bio.PDB import *
 import shutil
+from Bio.PDB import Structure, Model, Chain
 
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -16,7 +16,6 @@ os.chdir(script_dir)
 
 # User input for protein
 protein = input("Please enter the protein name: ")
-cocrystalligand = input("Please identify the cocrystal ligand: ")
 # Define directories
 dirs = [f"{script_dir}/Ligands/PDB", f"{script_dir}/Ligands/PDBQT", "Protein", "Results"]
 
@@ -54,7 +53,7 @@ os.chdir('./Protein/')
 os.rename(f'pdb{protein.lower()}.ent', f'{protein}.pdb')
 
 # Define a list of common metals and ions
-metals_and_ions = ['NA', 'MG', 'K', 'CA', 'MN', 'FE', 'CO', 'NI', 'CU', 'ZN', 'MO', 'CD', 'W', 'AU', 'HG']
+metals_and_ions = ['NA', 'MG', 'K', 'CA', 'MN', 'FE', 'CO', 'NI', 'CU', 'ZN', 'MO', 'CD', 'W', 'AU', 'HG', 'CL', 'BR', 'F', 'I', 'SO4', 'PO4', 'NO3', 'CO3']
 
 # Load the structure
 parser = PDBParser()
@@ -68,63 +67,64 @@ for model in structure:
                 # Remove the residue if it's a metal or ion
                 chain.detach_child(residue.get_id())
 
-if len(list(structure.get_chains())) > 1:
-    remove_chain = input("A secondary chain was found. Do you want to remove it? (yes/no): ")
-    if remove_chain.lower() == 'yes':
-        # Remove the second chain
-        model = list(structure.get_models())[0]
-        model.detach_child('B')
+def get_ligand_residues(structure):
+    standard_aa = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLU', 'GLN', 'GLY', 'HIS', 
+                   'ILE', 'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 
+                   'TYR', 'VAL']
+    ligand_residues = []
+    for model in structure:
+        for chain in model:
+            for res in chain:
+                if res.get_resname() not in standard_aa and res.get_resname() != "HOH":
+                    ligand_residues.append((chain, res))
+    return ligand_residues
 
-water_residues = []
-ligand_residues = []
-for model in structure:
-    for chain in model:
-        for res in chain:
-            if res.get_resname() == "HOH":
-                water_residues.append((chain, res.get_id()))
-            elif res.get_resname() == cocrystalligand:
-                ligand_residues.append((chain, res.get_id()))
+def write_ligands_to_files(ligand_residues, output_dir, metals_and_ions_dir, metals_and_ions):
+    for chain, ligand in ligand_residues:
+        io = PDBIO()
+        s = Structure.Structure('Ligand')
+        m = Model.Model(0)
+        s.add(m)
+        c = Chain.Chain(chain.id)
+        m.add(c)
+        c.add(ligand.copy())
+        io.set_structure(s)
+        filename = f'ligand_{chain.id}_{ligand.id[1]}.pdb'
+        if ligand.get_resname() in metals_and_ions:
+            io.save(os.path.join(metals_and_ions_dir, filename))
+        else:
+            io.save(os.path.join(output_dir, filename))
 
-# Create a new structure for ligand
-ligand_structure = Structure.Structure('Ligand')
-# Add a model to the ligand structure
-ligand_model = Model.Model(0)
-ligand_structure.add(ligand_model)
-# Create a new chain
-ligand_chain = Chain.Chain('A')
-ligand_model.add(ligand_chain)
-ligand_files = os.listdir(f"../Ligands/PDB/")
 
-# Cleaning the protein structure
-with open(f"{script_dir}/Ligands/PDBQT/all_ligands.pdbqt", "w") as out_file:
-    # Write each ligand to the output file
-    for i, ligand_file in enumerate(ligand_files):
-        ligand_structure = parser.get_structure(ligand_file, f"{script_dir}/Ligands/PDB/{ligand_file}") # Parse the ligand structure
-        out_file.write(f"MODEL {i+1}\n") # Write the MODEL line
-        io = PDBIO() # Write the ligand structure
-        io.set_structure(ligand_structure)
-        io.save(out_file)
-        out_file.write("ENDMDL\n") # Write the ENDMDL line
-for chain, res_id in ligand_residues: # Add ligand residues to the ligand structure
-    res = chain[res_id]
-    ligand_chain.add(res.copy())
-for chain, res_id in ligand_residues: # Remove ligand residues from the protein structure
-    chain.detach_child(res_id)
-for chain, res_id in water_residues: # Remove water molecules from the protein structure
-    chain.detach_child(res_id)
-io = PDBIO() # Save the cleaned protein structure
-io.set_structure(structure)
-io.save(f"{protein}_clean.pdb")
-io.set_structure(ligand_structure) # Save the ligand structure with a different filename
-ligand_filename = os.path.join(script_dir, 'Ligands','PDB', 'ligand_cocrystal.pdb')
-io.save(ligand_filename)
+def clean_protein_structure(structure, ligand_residues, water_residues):
+    for chain, ligand in ligand_residues:  # Remove ligand residues from the protein structure
+        chain.detach_child(ligand.id)
+    for chain, res_id in water_residues:  # Remove water molecules from the protein structure
+        chain.detach_child(res_id)
+    io = PDBIO()  # Save the cleaned protein structure
+    io.set_structure(structure)
+    io.save(f"{protein}_clean.pdb")
 
 def convert_pdb_to_pdbqt(protein):
     # Define the command
     command = f'obabel {protein}_clean.pdb -O {protein}_clean.pdbqt'
-
     # Run the command
     subprocess.run(command, shell=True)
+
+# Define the variables
+water_residues = []
+
+# Get ligand residues
+ligand_residues = get_ligand_residues(structure)
+
+# Write each ligand to a separate PDB file
+write_ligands_to_files(ligand_residues, f'{script_dir}/Ligands/PDB', f'{script_dir}/Ligands/Ions', metals_and_ions)
+
+# Clean the protein structure
+clean_protein_structure(structure, ligand_residues, water_residues)
+
+# Convert the cleaned protein structure to PDBQT format
+convert_pdb_to_pdbqt(protein)
 
 def make_rigid(protein):
     with open(f"{protein}_clean.pdbqt", "r") as input_file, open(f"{protein}_rigid.pdbqt", "w") as output_file:
@@ -141,20 +141,25 @@ os.chdir('../Ligands/')
 
 def convert_ligand_to_pdbqt(ligand_path):
     # Define the command
-    command = f'obabel {ligand_path} -O {script_dir}/Ligands/PDBQT/{ligand}.pdbqt -h'
+    command = f'obabel {ligand_path} -O {output_path} -h'
 
     # Run the command and capture the output
     result = subprocess.run(command, shell=True)
     print(result)
 
+# Define the variables
+ligand_dir = f'{script_dir}/Ligands/PDB/'
+ligand_files = [os.path.join(ligand_dir, file) for file in os.listdir(ligand_dir) if file.endswith('.pdb')]
+
 # Call the function with the ligand path
 for ligand in ligand_files:
-    ligand_path = f"{script_dir}/Ligands/PDB/{ligand}"
-    convert_ligand_to_pdbqt(ligand_path)
+    ligand_p = f"{ligand}"
+    output_path = f"{ligand[:-4]}.pdbqt"
+    convert_ligand_to_pdbqt(ligand_p)
 
 # Update the receptor path
 receptor_path = f"{script_dir}/Protein/{protein}_rigid.pdbqt"
-ligand_path = f"{script_dir}/Ligands/PDBQT/"  # Use the correct ligand structure filename
+ligandqt_path = f"{script_dir}/Ligands/PDBQT/"  # Use the correct ligand structure filename
 output_path = f"{script_dir}/Results/output.pdbqt"
 
 os.chdir('../Protein/')
@@ -206,9 +211,9 @@ size_y = 20
 size_z = 20
 # Construct the command
 for ligand in ligand_files:
-    ligand_path = f"{script_dir}/Ligands/PDBQT/{ligand}.pdbqt"
-    output_path = f"{script_dir}/Results/{ligand[:-4]}_output.pdbqt"
-    command = f"{vina_path} --receptor {receptor_path} --ligand {ligand_path} --out {output_path} --center_x {center_x} --center_y {center_y} --center_z {center_z} --size_x {size_x} --size_y {size_y} --size_z {size_z} --num_modes {num_modes}"
+    ligandqt_path = f"{ligand[:-4]}.pdbqt"
+    output_path = f"{ligand[:-4]}_output.pdbqt"
+    command = f"{vina_path} --receptor {receptor_path} --ligand {ligandqt_path} --out {output_path} --center_x {center_x} --center_y {center_y} --center_z {center_z} --size_x {size_x} --size_y {size_y} --size_z {size_z} --num_modes {num_modes}"
 
     # Print the command for debugging
     print(f"Running command: {command}")
